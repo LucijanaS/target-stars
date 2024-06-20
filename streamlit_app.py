@@ -198,8 +198,8 @@ st.markdown(
     """
     )
 
-baseline_max = st.text_input("Maximum Baseline available in meters", value=1)
-magnitude_min = st.number_input("Minimum magnitude of star", -2, 8)
+baseline_max = st.text_input("Maximum Baseline available in meters", value=3500)
+magnitude_min = st.number_input("Minimum magnitude of star", -2, 8, value=8)
 baseline_max = float(baseline_max)
 
 baselines_needed_array = np.array(baselines_needed)
