@@ -275,13 +275,15 @@ for i in range(len(Vmag__)):
 
 fig, ax1 = plt.subplots()
 sc = ax1.scatter(temps__, luminosities, c=temps__, cmap=bb_cmap, marker='.')
-ax1.semilogy()
+
 # Set labels
 ax1.set_ylabel(r'Luminosity [L$_\odot$]')
 ax1.set_xlabel('Temperatures [K]')
 ax1.set_title('H-R Diagram')
 cbar = plt.colorbar(sc, ax=ax1, label='Temperature (K)', pad=0.1)
 ax1.set_yscale('log')
+ax1.set_xscale('log')
+
 ax1.grid(True)
 
 st.markdown(
