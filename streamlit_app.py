@@ -193,7 +193,6 @@ st.markdown(
     ### Input
 
     Here one can choose the available baseline and the minimum magnitude of the stars that one wants to observe.
-    If all should be taken into account, slide both to the maximum available.
 
     """
     )
