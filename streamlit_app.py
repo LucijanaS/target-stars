@@ -275,7 +275,7 @@ for i in range(len(Vmag__)):
 
 fig, ax1 = plt.subplots()
 sc = ax1.scatter(temps__, luminosities, c=temps__, cmap=bb_cmap, marker='.')
-
+ax1.semilogy()
 # Set labels
 ax1.set_ylabel(r'Luminosity [L$_\odot$]')
 ax1.set_xlabel('Temperatures [K]')
