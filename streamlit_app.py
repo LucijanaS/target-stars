@@ -279,10 +279,12 @@ sc = ax1.scatter(temps__, luminosities, c=temps__, cmap=bb_cmap, marker='.')
 # Set labels
 ax1.set_ylabel(r'Luminosity [L$_\odot$]')
 ax1.set_xlabel('Temperatures [K]')
-ax1.set_title('H-R Diagram this one')
+ax1.set_title('H-R Diagram')
 cbar = plt.colorbar(sc, ax=ax1, label='Temperature (K)', pad=0.1)
 ax1.set_yscale('log')
 ax1.set_xscale('log')
+plt.gca().invert_xaxis()
+
 
 ax1.grid(True)
 
