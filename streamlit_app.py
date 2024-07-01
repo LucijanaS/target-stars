@@ -64,7 +64,7 @@ def create_custom_colormap(temperatures, colors):
 temperatures, bb_colors = parse_colormap('blackbody_colors')
 bb_cmap = create_custom_colormap(temperatures, bb_colors)
 
-norm = plt.Normalize(vmin=min(temps), vmax=max(temps))
+norm = plt.Normalize(vmin=0, vmax=29800)
 
 
 # function converting the entries retrieved from the .csv from string to float
