@@ -64,6 +64,9 @@ def create_custom_colormap(temperatures, colors):
 temperatures, bb_colors = parse_colormap('blackbody_colors')
 bb_cmap = create_custom_colormap(temperatures, bb_colors)
 
+norm = plt.Normalize(vmin=min(temps), vmax=max(temps))
+
+
 # function converting the entries retrieved from the .csv from string to float
 def convert_strings_to_floats(input_array):
     output_array = []
@@ -153,8 +156,8 @@ def mag_from_phi(Phi, wavelength=540 * 1e-9):
 fig, ax1 = plt.subplots()
 
 # Plot the first dataset with the colormap based on temperatures
-sc = ax1.scatter(inverse_diameter, Phi_V, c=temps, cmap=bb_cmap, marker='.')
-sc2 = ax1.scatter(inverse_diameter[sii_analyzed], Phi_V[sii_analyzed], c=temps[sii_analyzed], cmap=bb_cmap, marker='*', label='SII Analyzed Stars')
+sc = ax1.scatter(inverse_diameter, Phi_V, c=temps, cmap=bb_cmap, marker='.', norm=norm)
+sc2 = ax1.scatter(inverse_diameter[sii_analyzed], Phi_V[sii_analyzed], c=temps[sii_analyzed], cmap=bb_cmap, marker='*', label='SII Analyzed Stars', norm=norm)
 cbar = plt.colorbar(sc, ax=ax1, label='Temperature (K)', pad=0.15)
 ax1.set_yscale('log')
 ax1.set_xlabel('1/θ [mas$^{-1}$]')
@@ -210,25 +213,25 @@ baseline_max = float(baseline_max)
 baselines_needed_array = np.array(baselines_needed)
 indices_baseline = np.argwhere(baselines_needed_array < baseline_max)
 
-baselines_needed_ = baselines_needed_array[indices_baseline]
-Vmag_ = Vmag[indices_baseline]
-Phi_V_ = Phi_V[indices_baseline]
-diameter_V_ = diameter_V[indices_baseline]
-temps_ = temps[indices_baseline]
-inverse_diameter_ = inverse_diameter[indices_baseline]
-dist_ = dist[indices_baseline]
-sii_analyzed_ = sii_analyzed[indices_baseline]
+baselines_needed_ = baselines_needed_array[indices_baseline].reshape(-1)
+Vmag_ = Vmag[indices_baseline].reshape(-1)
+Phi_V_ = Phi_V[indices_baseline].reshape(-1)
+diameter_V_ = diameter_V[indices_baseline].reshape(-1)
+temps_ = temps[indices_baseline].reshape(-1)
+inverse_diameter_ = inverse_diameter[indices_baseline].reshape(-1)
+dist_ = dist[indices_baseline].reshape(-1)
+sii_analyzed_ = sii_analyzed[indices_baseline].reshape(-1)
 
 indices_magnitude = np.argwhere(Vmag_ < magnitude_min)
 
-baselines_needed__ = baselines_needed_[indices_magnitude]
-Phi_V__= Phi_V_[indices_magnitude]
-diameter_V__ = diameter_V_[indices_magnitude]
-temps__ = temps_[indices_magnitude]
-inverse_diameter__ = inverse_diameter_[indices_magnitude]
-dist__ = dist_[indices_magnitude]
-Vmag__ = Vmag_[indices_magnitude]
-sii_analyzed__ = sii_analyzed_[indices_magnitude]
+baselines_needed__ = baselines_needed_[indices_magnitude].reshape(-1)
+Phi_V__= Phi_V_[indices_magnitude].reshape(-1)
+diameter_V__ = diameter_V_[indices_magnitude].reshape(-1)
+temps__ = temps_[indices_magnitude].reshape(-1)
+inverse_diameter__ = inverse_diameter_[indices_magnitude].reshape(-1)
+dist__ = dist_[indices_magnitude].reshape(-1)
+Vmag__ = Vmag_[indices_magnitude].reshape(-1)
+sii_analyzed__ = sii_analyzed_[indices_magnitude].reshape(-1)
 
 
 
@@ -236,8 +239,8 @@ sii_analyzed__ = sii_analyzed_[indices_magnitude]
 fig, ax1 = plt.subplots()
 
 # Plot the first dataset with the colormap based on temperatures
-sc = ax1.scatter(inverse_diameter__, Phi_V__, c=temps__, cmap=bb_cmap, marker='.')
-sc2 = ax1.scatter(inverse_diameter__[sii_analyzed__], Phi_V__[sii_analyzed__], c=temps__[sii_analyzed__], cmap=bb_cmap, marker='*', label='SII Analyzed Stars')
+sc = ax1.scatter(inverse_diameter__, Phi_V__, c=temps__, cmap=bb_cmap, marker='.', norm=norm)
+sc2 = ax1.scatter(inverse_diameter__[sii_analyzed__], Phi_V__[sii_analyzed__], c=temps__[sii_analyzed__], cmap=bb_cmap, marker='*', label='SII Analyzed Stars', norm=norm)
 cbar = plt.colorbar(sc, ax=ax1, label='Temperature (K)', pad=0.15)
 ax1.set_yscale('log')
 ax1.set_xlabel('1/θ [mas$^{-1}$]')
@@ -285,8 +288,8 @@ for i in range(len(Vmag__)):
 
 fig, ax1 = plt.subplots()
 luminosities_array = np.array(luminosities)
-sc = ax1.scatter(temps__, luminosities_array, c=temps__, cmap=bb_cmap, marker='.')
-sc2 = ax1.scatter(temps__[sii_analyzed__], luminosities_array[sii_analyzed__], c=temps__[sii_analyzed__], cmap=bb_cmap, marker='*')
+sc = ax1.scatter(temps__, luminosities_array, c=temps__, cmap=bb_cmap, marker='.', norm=norm)
+sc2 = ax1.scatter(temps__[sii_analyzed__], luminosities_array[sii_analyzed__], c=temps__[sii_analyzed__], cmap=bb_cmap, marker='*', norm=norm)
 
 
 # Set labels
