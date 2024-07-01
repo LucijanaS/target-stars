@@ -284,7 +284,6 @@ for i in range(len(Vmag__)):
 
 fig, ax1 = plt.subplots()
 sc = ax1.scatter(temps__, luminosities, c=temps__, cmap=bb_cmap, marker='.')
-sc2 = ax1.scatter(temps__[sii_analyzed__], luminosities__[sii_analyzed__], c=temps__[sii_analyzed__], cmap=bb_cmap, marker='*', label='SII Analyzed Stars')
 
 
 # Set labels
