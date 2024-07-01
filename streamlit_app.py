@@ -188,7 +188,8 @@ st.markdown(
     """
     )
 
-st.write("Of the 9110 stars available, ",len(Vmag)," had enough information to create suitable HR-diagrams. ")
+st.write("Of the 9110 stars available, ",len(Vmag)," had enough information to create suitable HR-diagrams.")
+st.write("The ones marked with a '*' had their diameters already measured by Hanbury Brown.")
 
 st.pyplot(plt)
 
@@ -283,7 +284,9 @@ for i in range(len(Vmag__)):
 
 
 fig, ax1 = plt.subplots()
-sc = ax1.scatter(temps__, luminosities, c=temps__, cmap=bb_cmap, marker='.')
+luminosities_array = np.array(luminosities)
+sc = ax1.scatter(temps__, luminosities_array, c=temps__, cmap=bb_cmap, marker='.')
+sc2 = ax1.scatter(temps__[sii_analyzed__], luminosities_array[sii_analyzed__], c=temps__[sii_analyzed__], cmap=bb_cmap, marker='*')
 
 
 # Set labels
