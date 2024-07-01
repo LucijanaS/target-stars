@@ -95,6 +95,9 @@ dist = np.array(dist)
 Vmag = convert_strings_to_floats(data['Vmag'])
 Vmag = np.array(Vmag)
 
+sii_analyzed = np.array(data['SII'])
+sii_analyzed = [True if entry.lower() == 'x' else False for entry in sii_analyzed]
+
 # Remove entries where distance is NaN
 valid_indices = ~np.isnan(dist) & (dist > 0)
 
@@ -103,6 +106,7 @@ Phi_V = Phi_V[valid_indices]
 diameter_V = diameter_V[valid_indices]
 temps = temps[valid_indices]
 Vmag = Vmag[valid_indices]
+sii_analyzed = np.array(sii_analyzed)[valid_indices]
 
 
 def visibility(b, theta, lambda_=540 * 1e-9):
@@ -150,6 +154,7 @@ fig, ax1 = plt.subplots()
 
 # Plot the first dataset with the colormap based on temperatures
 sc = ax1.scatter(inverse_diameter, Phi_V, c=temps, cmap=bb_cmap, marker='.')
+sc2 = ax1.scatter(inverse_diameter[sii_analyzed], Phi_V[sii_analyzed], c=temps[sii_analyzed], cmap=bb_cmap, marker='*', label='SII Analyzed Stars')
 cbar = plt.colorbar(sc, ax=ax1, label='Temperature (K)', pad=0.15)
 ax1.set_yscale('log')
 ax1.set_xlabel('1/θ [mas$^{-1}$]')
@@ -211,6 +216,7 @@ diameter_V_ = diameter_V[indices_baseline]
 temps_ = temps[indices_baseline]
 inverse_diameter_ = inverse_diameter[indices_baseline]
 dist_ = dist[indices_baseline]
+sii_analyzed_ = sii_analyzed[indices_baseline]
 
 indices_magnitude = np.argwhere(Vmag_ < magnitude_min)
 
@@ -221,6 +227,8 @@ temps__ = temps_[indices_magnitude]
 inverse_diameter__ = inverse_diameter_[indices_magnitude]
 dist__ = dist_[indices_magnitude]
 Vmag__ = Vmag_[indices_magnitude]
+sii_analyzed__ = sii_analyzed_[indices_magnitude]
+
 
 
 # Plot using the colormap based on temperatures
@@ -228,6 +236,7 @@ fig, ax1 = plt.subplots()
 
 # Plot the first dataset with the colormap based on temperatures
 sc = ax1.scatter(inverse_diameter__, Phi_V__, c=temps__, cmap=bb_cmap, marker='.')
+sc2 = ax1.scatter(inverse_diameter__[sii_analyzed__], Phi_V__[sii_analyzed__], c=temps__[sii_analyzed__], cmap=bb_cmap, marker='*', label='SII Analyzed Stars')
 cbar = plt.colorbar(sc, ax=ax1, label='Temperature (K)', pad=0.15)
 ax1.set_yscale('log')
 ax1.set_xlabel('1/θ [mas$^{-1}$]')
@@ -275,6 +284,8 @@ for i in range(len(Vmag__)):
 
 fig, ax1 = plt.subplots()
 sc = ax1.scatter(temps__, luminosities, c=temps__, cmap=bb_cmap, marker='.')
+sc2 = ax1.scatter(temps__[sii_analyzed__], luminosities[sii_analyzed__], c=temps__[sii_analyzed__], cmap=bb_cmap, marker='*', label='SII Analyzed Stars')
+
 
 # Set labels
 ax1.set_ylabel(r'Luminosity [L$_\odot$]')
