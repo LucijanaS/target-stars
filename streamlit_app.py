@@ -382,9 +382,15 @@ df_filtered = pd.DataFrame(filtered_data)
 csv = df_filtered.to_csv(index=False)
 
 
+st.markdown(
+    """
+    To download a CSV file of the filtered stars with its Bayer designation, common name, RA, Dec as well as other properties, click the button below:
+    """
+)
+
 # Add the download button
 st.download_button(
-    label="Download filtered stars as CSV",
+    label="Download",
     data=csv,
     file_name='filtered_stars.csv',
     mime='text/csv'
