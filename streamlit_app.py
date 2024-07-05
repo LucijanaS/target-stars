@@ -312,3 +312,80 @@ st.markdown(
 )
 
 st.pyplot(plt)
+
+# other properties of the stars put into arrays
+BayerF = np.array(data['BayerF'])
+Common = np.array(data['Common'])
+Parallax = np.array(data['Parallax'])
+RA_decimal = np.array(data['RA_decimal'])
+Dec_decimal = np.array(data['Dec_decimal'])
+RA = np.array(data['RA'])
+Dec = np.array(data['Dec'])
+Diameter_U = np.array(data['Diameter_U'])
+Diameter_B = np.array(data['Diameter_B'])
+Phi_U = np.array(data['Phi_U'])
+Phi_B = np.array(data['Phi_B'])
+
+# filter arrays as the other properties before by baseline and magnitude
+BayerF_ = BayerF[indices_baseline].reshape(-1)
+Common_ = Common[indices_baseline].reshape(-1)
+Parallax_ = Parallax[indices_baseline].reshape(-1)
+RA_decimal_ = RA_decimal[indices_baseline].reshape(-1)
+Dec_decimal_ = Dec_decimal[indices_baseline].reshape(-1)
+RA_ = RA[indices_baseline].reshape(-1)
+Dec_ = Dec[indices_baseline].reshape(-1)
+Diameter_U_ = Diameter_U[indices_baseline].reshape(-1)
+Diameter_B_ = Diameter_B[indices_baseline].reshape(-1)
+Phi_U_ = Phi_U[indices_baseline].reshape(-1)
+Phi_B_ = Phi_B[indices_baseline].reshape(-1)
+
+BayerF__ = BayerF_[indices_magnitude].reshape(-1)
+Common__ = Common_[indices_magnitude].reshape(-1)
+Parallax__ = Parallax_[indices_magnitude].reshape(-1)
+RA_decimal__ = RA_decimal_[indices_magnitude].reshape(-1)
+Dec_decimal__ = Dec_decimal_[indices_magnitude].reshape(-1)
+RA__ = RA_[indices_magnitude].reshape(-1)
+Dec__ = Dec_[indices_magnitude].reshape(-1)
+Diameter_U__ = Diameter_U_[indices_magnitude].reshape(-1)
+Diameter_B__ = Diameter_B_[indices_magnitude].reshape(-1)
+Phi_U__ = Phi_U_[indices_magnitude].reshape(-1)
+Phi_B__ = Phi_B_[indices_magnitude].reshape(-1)
+
+# save as dataframe
+filtered_data = {
+    'BayerF': BayerF__,
+    'Common': Common__,
+    'Parallax': Parallax__,
+    'Distance': dist__,
+    'Umag': [np.nan] * len(BayerF__),  # Assuming 'Umag' was not used and therefore is not available
+    'Vmag': Vmag__,
+    'Bmag': [np.nan] * len(BayerF__),  # Assuming 'Bmag' was not used and therefore is not available
+    'Temp': temps__,
+    'RA_decimal': RA_decimal__,
+    'Dec_decimal': Dec_decimal__,
+    'RA': RA__,
+    'Dec': Dec__,
+    'Diameter_U': Diameter_U__,
+    'Diameter_V': diameter_V__,
+    'Diameter_B': Diameter_B__,
+    'Phi_U': Phi_U__,
+    'Phi_V': Phi_V__,
+    'Phi_B': Phi_B__,
+    'SII': sii_analyzed__,
+    'Baseline_Needed': baselines_needed__,
+    'Inverse_Diameter': inverse_diameter__
+}
+
+df_filtered = pd.DataFrame(filtered_data)
+
+# convert to csv
+csv = df_filtered.to_csv(index=False)
+
+
+# Add the download button
+st.download_button(
+    label="Download filtered stars as CSV",
+    data=csv,
+    file_name='filtered_stars.csv',
+    mime='text/csv'
+)
