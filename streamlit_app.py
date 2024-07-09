@@ -325,6 +325,8 @@ Diameter_U = np.array(data['Diameter_U'])
 Diameter_B = np.array(data['Diameter_B'])
 Phi_U = np.array(data['Phi_U'])
 Phi_B = np.array(data['Phi_B'])
+Umag = np.array(data['Umag'])
+Bmag = np.array(data['Bmag'])
 
 # filter arrays as the other properties before by baseline and magnitude
 BayerF_ = BayerF[indices_baseline].reshape(-1)
@@ -338,6 +340,8 @@ Diameter_U_ = Diameter_U[indices_baseline].reshape(-1)
 Diameter_B_ = Diameter_B[indices_baseline].reshape(-1)
 Phi_U_ = Phi_U[indices_baseline].reshape(-1)
 Phi_B_ = Phi_B[indices_baseline].reshape(-1)
+Umag_ = Umag[indices_baseline].reshape(-1)
+Bmag_ = Bmag[indices_baseline].reshape(-1)
 
 BayerF__ = BayerF_[indices_magnitude].reshape(-1)
 Common__ = Common_[indices_magnitude].reshape(-1)
@@ -350,6 +354,8 @@ Diameter_U__ = Diameter_U_[indices_magnitude].reshape(-1)
 Diameter_B__ = Diameter_B_[indices_magnitude].reshape(-1)
 Phi_U__ = Phi_U_[indices_magnitude].reshape(-1)
 Phi_B__ = Phi_B_[indices_magnitude].reshape(-1)
+Umag__ = Umag_[indices_magnitude].reshape(-1)
+Bmag__ = Bmag_[indices_magnitude].reshape(-1)
 
 # save as dataframe
 filtered_data = {
@@ -357,9 +363,9 @@ filtered_data = {
     'Common': Common__,
     'Parallax': Parallax__,
     'Distance': dist__,
-    'Umag': [np.nan] * len(BayerF__),  # Assuming 'Umag' was not used and therefore is not available
+    'Umag': Umag__,  # Assuming 'Umag' was not used and therefore is not available
     'Vmag': Vmag__,
-    'Bmag': [np.nan] * len(BayerF__),  # Assuming 'Bmag' was not used and therefore is not available
+    'Bmag': Bmag__,  # Assuming 'Bmag' was not used and therefore is not available
     'Temp': temps__,
     'RA_decimal': RA_decimal__,
     'Dec_decimal': Dec_decimal__,
