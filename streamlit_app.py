@@ -204,7 +204,7 @@ st.markdown(
     )
 
 st.write("Of the 9110 stars available, ",len(Vmag)," had enough information to create suitable HR-diagrams.")
-st.write("The ones marked with a '*' had their diameters already measured by Hanbury Brown.")
+st.write("The ones marked with a '★' had their diameters already measured by Hanbury Brown.")
 
 st.pyplot(plt)
 
