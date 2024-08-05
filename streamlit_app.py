@@ -226,10 +226,7 @@ st.markdown(
 
 filter_b_d = st.radio(
     "Filter by baseline or angular diameter",
-    ["baseline", "angular diameter"],
-    captions=[
-        "Default"
-    ],
+    ["baseline", "angular diameter"]
 )
 print(filter_b_d)
 
