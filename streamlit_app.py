@@ -201,17 +201,18 @@ st.markdown(
     """
     ### Input
 
-    Here one can choose the available baseline and the minimum magnitude of the stars that one wants to observe.
+    Here one can choose the available baseline, the minimum magnitude of the stars that one wants to observe and if desired the RA and Dec.
 
     """
     )
 
-baseline_max = st.text_input("Maximum Baseline available in meters", value=3500)
+baseline_available = st.slider("Baseline available in meters", 0, 3500, (0, 3500))
 magnitude_min = st.number_input("Minimum magnitude of star", -2, 8, value=8)
-baseline_max = float(baseline_max)
 
 baselines_needed_array = np.array(baselines_needed)
-indices_baseline = np.argwhere(baselines_needed_array < baseline_max)
+
+baseline_min, baseline_max = baseline_available
+indices_baseline = np.argwhere((baselines_needed_array >= baseline_min) & (baselines_needed_array <= baseline_max))
 
 baselines_needed_ = baselines_needed_array[indices_baseline].reshape(-1)
 Vmag_ = Vmag[indices_baseline].reshape(-1)
@@ -325,8 +326,6 @@ Diameter_U = np.array(data['Diameter_U'])
 Diameter_B = np.array(data['Diameter_B'])
 Phi_U = np.array(data['Phi_U'])
 Phi_B = np.array(data['Phi_B'])
-Umag = np.array(data['Umag'])
-Bmag = np.array(data['Bmag'])
 
 # filter arrays as the other properties before by baseline and magnitude
 BayerF_ = BayerF[indices_baseline].reshape(-1)
@@ -340,8 +339,6 @@ Diameter_U_ = Diameter_U[indices_baseline].reshape(-1)
 Diameter_B_ = Diameter_B[indices_baseline].reshape(-1)
 Phi_U_ = Phi_U[indices_baseline].reshape(-1)
 Phi_B_ = Phi_B[indices_baseline].reshape(-1)
-Umag_ = Umag[indices_baseline].reshape(-1)
-Bmag_ = Bmag[indices_baseline].reshape(-1)
 
 BayerF__ = BayerF_[indices_magnitude].reshape(-1)
 Common__ = Common_[indices_magnitude].reshape(-1)
@@ -354,8 +351,6 @@ Diameter_U__ = Diameter_U_[indices_magnitude].reshape(-1)
 Diameter_B__ = Diameter_B_[indices_magnitude].reshape(-1)
 Phi_U__ = Phi_U_[indices_magnitude].reshape(-1)
 Phi_B__ = Phi_B_[indices_magnitude].reshape(-1)
-Umag__ = Umag_[indices_magnitude].reshape(-1)
-Bmag__ = Bmag_[indices_magnitude].reshape(-1)
 
 # save as dataframe
 filtered_data = {
@@ -363,9 +358,9 @@ filtered_data = {
     'Common': Common__,
     'Parallax': Parallax__,
     'Distance': dist__,
-    'Umag': Umag__,  # Assuming 'Umag' was not used and therefore is not available
+    'Umag': [np.nan] * len(BayerF__),  # Assuming 'Umag' was not used and therefore is not available
     'Vmag': Vmag__,
-    'Bmag': Bmag__,  # Assuming 'Bmag' was not used and therefore is not available
+    'Bmag': [np.nan] * len(BayerF__),  # Assuming 'Bmag' was not used and therefore is not available
     'Temp': temps__,
     'RA_decimal': RA_decimal__,
     'Dec_decimal': Dec_decimal__,
