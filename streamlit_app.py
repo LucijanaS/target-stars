@@ -96,8 +96,6 @@ wavelength_m = df['wavelength_nm'].to_numpy() * 1e-9
 df['baseline_needed_m'] = baseline_needed(df['theta_mas'].to_numpy(), wavelength_m)
 df['inverse_theta_mas'] = 1 / df['theta_mas']
 
-sii_marker = df['sii_observed'].to_numpy(dtype=bool)
-
 
 def plot_phi_vs_theta(data):
     fig, ax1 = plt.subplots()
