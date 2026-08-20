@@ -3,6 +3,7 @@ import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
+import matplotlib.ticker as mticker
 from scipy.constants import c, h, pi
 from scipy.special import j1, jn_zeros
 
@@ -285,6 +286,12 @@ ax1.set_title('H-R Diagram')
 ax1.set_yscale('log')
 ax1.set_xscale('log')
 ax1.invert_xaxis()
+# A plain log-scale locator crams in every minor tick (2, 3, 4, 6...) as a label since the
+# temperature range only spans about a decade, so they overlap into an unreadable smear. A
+# fixed, round-number tick set with plain (non-scientific) labels stays legible instead.
+ax1.xaxis.set_major_locator(mticker.FixedLocator([2000, 3000, 5000, 7000, 10000, 15000, 20000, 30000, 45000]))
+ax1.xaxis.set_major_formatter(mticker.ScalarFormatter())
+ax1.xaxis.set_minor_formatter(mticker.NullFormatter())
 ax1.grid(True)
 
 st.pyplot(fig)
