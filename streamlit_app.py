@@ -98,7 +98,10 @@ df['inverse_theta_mas'] = 1 / df['theta_mas']
 
 
 def plot_phi_vs_theta(data):
-    fig, ax1 = plt.subplots()
+    # Wider/taller than matplotlib's default (6.4x4.8in) -- this plot carries four axis label
+    # sets (bottom/left/right/top) plus a colorbar, all sharing one figure, so the default size
+    # leaves too little room for the actual data area and every label ends up looking oversized.
+    fig, ax1 = plt.subplots(figsize=(9, 6.5))
     ax1.scatter(data['inverse_theta_mas'], data['phi'], c=data['temp_K'], cmap=bb_cmap, marker='.', norm=norm)
     marked = data['sii_observed'].to_numpy(dtype=bool)
     ax1.scatter(data['inverse_theta_mas'][marked], data['phi'][marked], c=data['temp_K'][marked],
@@ -117,13 +120,16 @@ def plot_phi_vs_theta(data):
     # The G-band (Gaia, 622 nm) accounts for ~98% of this catalog, so the secondary magnitude
     # axis uses that wavelength -- it's only approximate for the V-band (BSC) points mixed in.
     ax2.set_ylim(mag_from_phi(phi_min, 622e-9), mag_from_phi(phi_max, 622e-9))
-    ax2.set_ylabel('magnitude (approx., G-band)')
+    ax2.set_ylabel('magnitude (approx., G-band)', fontsize=9)
+    ax2.tick_params(labelsize=9)
 
     ax3.scatter(data['baseline_needed_m'], data['phi'], c=data['temp_K'], cmap=bb_cmap, marker='')
-    ax3.set_xlabel('baseline needed [m]')
+    ax3.set_xlabel('baseline needed [m]', fontsize=9)
+    ax3.tick_params(labelsize=9)
 
     ax2.grid(True)
     ax3.grid(True)
+    fig.tight_layout()
     return fig
 
 
