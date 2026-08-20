@@ -1,15 +1,10 @@
-import altair as alt
 import numpy as np
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
-import numpy as np
-import matplotlib.pyplot as plt
-import csv
-from scipy.constants import c, k, h, pi, parsec
 import matplotlib.colors as mcolors
+from scipy.constants import c, h, pi
 from scipy.special import j1, jn_zeros
-
 
 st.markdown(
     """
@@ -19,26 +14,22 @@ st.markdown(
     """
     )
 
-
-# Initialize a dictionary to store data from each column
-data = {}
 plt.style.use('dark_background')
 
-# Open the CSV file
-with open('10000stars_data.csv', newline='') as csvfile:
-    reader = csv.reader(csvfile)
-    header = next(reader)  # Read the header row
 
-    # Create an empty list for each column
-    for column_name in header:
-        data[column_name] = []
+@st.cache_data
+def load_catalog():
+    return pd.read_csv('combined_stars.csv', low_memory=False)
 
-    # Iterate over each row in the CSV file
-    for row in reader:
-        # Iterate over each item in the row and append it to the respective column list
-        for idx, item in enumerate(row):
-            column_name = header[idx]  # Get the corresponding column name
-            data[column_name].append(item)
+
+df = load_catalog()
+
+# Only the rows a star needs to appear in the Phi-vs-theta plot and the baseline/diameter
+# filters below -- distance is checked separately, only where it's actually needed (the H-R
+# diagram), so a missing/unmeasured distance doesn't drop an otherwise-usable star.
+core_valid = df['theta_mas'].notna() & df['temp_K'].notna() & df['mag'].notna() & (df['theta_mas'] > 0)
+df = df[core_valid].reset_index(drop=True)
+
 
 # Create colormap that corresponds to temperatures of the stars (color table taken from http://www.vendian.org/mncharity/dir3/blackbody/)
 def parse_colormap(file_path):
@@ -64,149 +55,106 @@ def create_custom_colormap(temperatures, colors):
 temperatures, bb_colors = parse_colormap('blackbody_colors')
 bb_cmap = create_custom_colormap(temperatures, bb_colors)
 
+# The blackbody_colors table only tabulates up to 29800 K (hotter stars are all much the same
+# saturated blue-white), so the color norm stops there too rather than stretching to this
+# catalog's hottest star (~45000 K) -- anything past 29800 K just clips to that end color.
 norm = plt.Normalize(vmin=0, vmax=29800)
 
 
-# function converting the entries retrieved from the .csv from string to float
-def convert_strings_to_floats(input_array):
-    output_array = []
-    for element in input_array:
-        try:
-            converted_float = float(element)
-        except ValueError:
-            converted_float = np.nan  # Use NaN for invalid or empty strings
-        output_array.append(converted_float)
-    return output_array
-
-# Extracting entries and converting
-
-Phi_V = np.array(data['Phi_V'])
-Phi_V = convert_strings_to_floats(Phi_V)
-Phi_V = np.array(Phi_V)
-
-diameter_V = np.array(data['Diameter_V'])
-diameter_V = convert_strings_to_floats(diameter_V)
-diameter_V = np.array(diameter_V)
-
-temps = np.array(data['Temp'])
-temps = convert_strings_to_floats(temps)
-temps = np.array(temps)
-
-dist = convert_strings_to_floats(data['Distance'])
-dist = np.array(dist)
-
-Vmag = convert_strings_to_floats(data['Vmag'])
-Vmag = np.array(Vmag)
-
-Dec_decimal = convert_strings_to_floats(data['Dec_decimal'])
-Dec_decimal = np.array(Dec_decimal)
-
-RA_decimal = convert_strings_to_floats(data['RA_decimal'])
-Ra_decimal = np.array(RA_decimal)
-
-sii_analyzed = np.array(data['SII'])
-sii_analyzed = [True if entry.lower() == 'x' else False for entry in sii_analyzed]
-
-# Remove entries where distance is NaN
-valid_indices = ~np.isnan(dist) & (dist > 0)
-
-dist = dist[valid_indices]
-Phi_V = Phi_V[valid_indices]
-diameter_V = diameter_V[valid_indices]
-temps = temps[valid_indices]
-Vmag = Vmag[valid_indices]
-sii_analyzed = np.array(sii_analyzed)[valid_indices]
-Dec_decimal = np.array(Dec_decimal)[valid_indices]
-RA_decimal = np.array(RA_decimal)[valid_indices]
+def mas_to_rad(theta_mas):
+    """Convert an angle in milliarcseconds to radians."""
+    return theta_mas / 1000 * pi / (3600 * 180)
 
 
-def visibility(b, theta, lambda_=540 * 1e-9):
-    """The squared visibility, often denoted in papers as |V_12|^2 and equals g**(2)-1"""
-    input = pi * b * theta / lambda_
-    if b == 0:
-        I = 1
-    else:
-        I = (2 * j1(input) / input) ** 2
-    return I
-
-def mas_to_ang(theta_mas):
-    return theta_mas/ 1000 * pi / (3600 * 180)
-
-def baseline_needed(theta, lambda_=540e-9):
-    """Function to calculate the minimum baseline needed for a given theta."""
-    theta = mas_to_ang(theta)
-    j1_root = jn_zeros(1, 1)
-    return float(j1_root/(pi*theta / (540 * 1e-9)))
-
-# Determine baselines needed for each star
-baselines_needed = []
-
-for i in range(len(diameter_V)):
-    baselines_needed.append(baseline_needed(diameter_V[i]))
+def baseline_needed(theta_mas, wavelength_m):
+    """Minimum interferometric baseline (m) to resolve the first visibility null for a uniform
+    disk of angular diameter theta_mas (mas) at the given wavelength (m). Both arguments may be
+    arrays -- used here with each star's own catalogue wavelength (V-band for BSC, G-band for
+    Gaia) rather than a single hardcoded wavelength, since the combined catalog mixes both."""
+    theta_rad = mas_to_rad(theta_mas)
+    j1_root = jn_zeros(1, 1)[0]  # jn_zeros returns an array -- [0] to get the scalar root
+    return j1_root / (pi * theta_rad / wavelength_m)
 
 
-baselines_needed_array = np.array(baselines_needed)
+def mag_from_phi(phi, wavelength_m):
+    """Inverse of Phi(): recover an apparent magnitude from a spectral photon flux density."""
+    nu = c / wavelength_m
+    return -2.5 * (22.44 + np.log10(2 * nu * h * phi))
 
 
-# determine the inverse of the diameter and the diameter in angular degrees
-inverse_diameter = []
-diameter_in_rad = []
+def relmag_to_absmag(rel_magnitude, distance_pc):
+    """Converts an apparent magnitude to absolute magnitude given a distance in parsec."""
+    return rel_magnitude + 5 - 5 * np.log10(distance_pc)
 
-for i in range(len(diameter_V)):
-    diameter_in_rad.append(mas_to_ang(diameter_V[i]))
-    inverse_diameter.append(1 / diameter_V[i])
-inverse_diameter = np.array(inverse_diameter)
-print(dist[7])
 
-# Determining Phi from the magnitude of the star
-def mag_from_phi(Phi, wavelength=540 * 1e-9):
-    nu = c / wavelength
-    magnitude = -2.5 * (22.44 + np.log10(2 * nu * h * Phi))
-    return magnitude
+def luminosity_from_absmag(absmag):
+    """Bolometric-ish luminosity (L_sun) from an absolute magnitude, calibrated against the Sun (M_V=4.74)."""
+    return 10 ** (0.4 * (4.74 - absmag))
 
-# Plot using the colormap based on temperatures
-fig, ax1 = plt.subplots()
 
-# Plot the first dataset with the colormap based on temperatures
-sc = ax1.scatter(inverse_diameter, Phi_V, c=temps, cmap=bb_cmap, marker='.', norm=norm)
-sc2 = ax1.scatter(inverse_diameter[sii_analyzed], Phi_V[sii_analyzed], c=temps[sii_analyzed], cmap=bb_cmap, marker='*', label='SII Analyzed Stars', norm=norm)
-cbar = plt.colorbar(sc, ax=ax1, label='Temperature (K)', pad=0.15)
-ax1.set_yscale('log')
-ax1.set_xlabel('1/θ [mas$^{-1}$]')
-ax1.set_ylabel(r'Φ [photons m$^{-2}$ s$^{-1}$ Hz$^{-1}$]')
-ax1.set_title('Φ vs θ')
-#ax1.set_xlim(0, 25)
+wavelength_m = df['wavelength_nm'].to_numpy() * 1e-9
+df['baseline_needed_m'] = baseline_needed(df['theta_mas'].to_numpy(), wavelength_m)
+df['inverse_theta_mas'] = 1 / df['theta_mas']
 
-ax2 = ax1.twinx()
-ax3 = ax1.twiny()
+sii_marker = df['sii_observed'].to_numpy(dtype=bool)
 
-# Set the limits for the second y-axis based on the transformation
-phi_min, phi_max = ax1.get_ylim()
-thetainverse_min, thetainverse_max = ax1.get_xlim()
-if thetainverse_min < 0:
-    thetainverse_min = 0
 
-ax2.set_ylim(mag_from_phi(phi_min), mag_from_phi(phi_max))
-ax2.set_ylabel('magnitude')
+def plot_phi_vs_theta(data):
+    fig, ax1 = plt.subplots()
+    ax1.scatter(data['inverse_theta_mas'], data['phi'], c=data['temp_K'], cmap=bb_cmap, marker='.', norm=norm)
+    marked = data['sii_observed'].to_numpy(dtype=bool)
+    ax1.scatter(data['inverse_theta_mas'][marked], data['phi'][marked], c=data['temp_K'][marked],
+                cmap=bb_cmap, marker='*', label='SII Observed Stars', norm=norm)
+    sc = ax1.scatter([], [], c=[], cmap=bb_cmap, norm=norm)  # dummy mappable for the colorbar
+    plt.colorbar(sc, ax=ax1, label='Temperature (K)', pad=0.15)
+    ax1.set_yscale('log')
+    ax1.set_xlabel('1/θ [mas$^{-1}$]')
+    ax1.set_ylabel(r'Φ [photons m$^{-2}$ s$^{-1}$ Hz$^{-1}$]')
+    ax1.set_title('Φ vs θ')
 
-ax3.scatter(baselines_needed, Phi_V, c=temps, cmap=bb_cmap, marker='')
-ax3.set_xlabel('baseline needed [m]')
+    ax2 = ax1.twinx()
+    ax3 = ax1.twiny()
 
-ax2.grid(True)
-ax3.grid(True)
+    phi_min, phi_max = ax1.get_ylim()
+    # The G-band (Gaia, 622 nm) accounts for ~98% of this catalog, so the secondary magnitude
+    # axis uses that wavelength -- it's only approximate for the V-band (BSC) points mixed in.
+    ax2.set_ylim(mag_from_phi(phi_min, 622e-9), mag_from_phi(phi_max, 622e-9))
+    ax2.set_ylabel('magnitude (approx., G-band)')
+
+    ax3.scatter(data['baseline_needed_m'], data['phi'], c=data['temp_K'], cmap=bb_cmap, marker='')
+    ax3.set_xlabel('baseline needed [m]')
+
+    ax2.grid(True)
+    ax3.grid(True)
+    return fig
+
 
 st.markdown(
     """
-    The stars used are from the Yale Bright Star Catalog which contains 9110 of the brightest stars (found at http://tdc-www.harvard.edu/catalogs/bsc5.html). 
-    The cataloge is in ASCII format and was converted to a .JSON format in the repository https://github.com/brettonw/YaleBrightStarCatalog. 
-    The data file used from that repository is bsc5-all.json.
+    The stars used are combined from two catalogues -- see [DATA_SOURCES.md](https://github.com/LucijanaS/brightstar/blob/main/DATA_SOURCES.md)
+    in the companion [brightstar](https://github.com/LucijanaS/brightstar) repository for the exact queries and how they were merged:
+
+    - The **Yale Bright Star Catalogue** (9110 of the brightest stars, http://tdc-www.harvard.edu/catalogs/bsc5.html,
+      converted to JSON by https://github.com/brettonw/YaleBrightStarCatalog). Angular diameters for these stars are
+      reconstructed from V-band magnitude and effective temperature via the blackbody flux relation.
+    - **Gaia DR3** (ESA), queried for stars brighter than G=9 with a resolved GSP-Phot radius. Angular diameters for
+      these stars come directly from Gaia's own radius and distance fit, not a flux reconstruction -- this is the
+      large majority of the catalog and is generally more reliable than the BSC's flux-based diameters.
+
+    Duplicate stars (matched by sky position) are kept once, preferring the Bright Star Catalogue entry since it
+    carries real Johnson photometry.
     """
     )
 
-st.write("Of the 9110 stars available, ",len(Vmag)," had enough information to create suitable HR-diagrams.")
-st.write("The ones marked with a '★' had their diameters already measured by Hanbury Brown.")
+st.write(
+    f"Of the stars in the combined catalog, {len(df)} had enough information (angular diameter, "
+    f"temperature, and magnitude) to plot below."
+)
+st.write("The ones marked with a '★' have already been observed via intensity interferometry "
+         "-- currently the 32 stars from Hanbury Brown, Davis & Allen (1974).")
 
-st.pyplot(plt)
+st.pyplot(plot_phi_vs_theta(df))
+plt.close('all')
 
 
 st.markdown(
@@ -214,7 +162,7 @@ st.markdown(
     ## Input
 
     Here you can select the available baseline, the minimum magnitude of the stars you want to observe and if desired the RA and Dec. Alternatively you can specify the angular diameter instead of the baseline.
-    
+
     ### Filtering Options
 
     Use the options below to filter the stars based on your requirements.
@@ -228,60 +176,29 @@ filter_b_d = st.radio(
     "Filter by baseline or angular diameter",
     ["baseline", "angular diameter"]
 )
-print(filter_b_d)
 
 if filter_b_d == "baseline":
     st.markdown("#### Baseline Selection")
     baseline_available = st.slider("Baseline available in meters", 0, 3500, (0, 3500))
     baseline_min, baseline_max = baseline_available
-    indices_baseline = np.argwhere((baselines_needed_array >= baseline_min) & (baselines_needed_array <= baseline_max))
-    baselines_needed_ = baselines_needed_array[indices_baseline].reshape(-1)
-    Vmag_ = Vmag[indices_baseline].reshape(-1)
-    Phi_V_ = Phi_V[indices_baseline].reshape(-1)
-    diameter_V_ = diameter_V[indices_baseline].reshape(-1)
-    temps_ = temps[indices_baseline].reshape(-1)
-    inverse_diameter_ = inverse_diameter[indices_baseline].reshape(-1)
-    dist_ = dist[indices_baseline].reshape(-1)
-    sii_analyzed_ = sii_analyzed[indices_baseline].reshape(-1)
-    Dec_decimal_ = Dec_decimal[indices_baseline].reshape(-1)
-    RA_decimal_ = RA_decimal[indices_baseline].reshape(-1)
-
+    mask = (df['baseline_needed_m'] >= baseline_min) & (df['baseline_needed_m'] <= baseline_max)
 else:
     st.markdown("#### Angular Diameter Selection")
     desired_angular_diameter = st.slider("Angular diameter of star desired in milliarcseconds", 0.00, 50.00, (0.00, 50.00))
     diameter_min, diameter_max = desired_angular_diameter
-    indices_angular_diameter = np.argwhere((diameter_V >= diameter_min) & (diameter_V <= diameter_max))
-    baselines_needed_ = baselines_needed_array[indices_angular_diameter].reshape(-1)
-    Vmag_ = Vmag[indices_angular_diameter].reshape(-1)
-    Phi_V_ = Phi_V[indices_angular_diameter].reshape(-1)
-    diameter_V_ = diameter_V[indices_angular_diameter].reshape(-1)
-    temps_ = temps[indices_angular_diameter].reshape(-1)
-    inverse_diameter_ = inverse_diameter[indices_angular_diameter].reshape(-1)
-    dist_ = dist[indices_angular_diameter].reshape(-1)
-    sii_analyzed_ = sii_analyzed[indices_angular_diameter].reshape(-1)
-    Dec_decimal_ = Dec_decimal[indices_angular_diameter].reshape(-1)
-    RA_decimal_ = RA_decimal[indices_angular_diameter].reshape(-1)
+    mask = (df['theta_mas'] >= diameter_min) & (df['theta_mas'] <= diameter_max)
 
 st.markdown(
     """
     #### Minimum Magnitude
 
     Set the minimum magnitude of the star you want to observe. This helps filter out stars that are too faint.
+    Note: this is V-band magnitude for Bright Star Catalogue stars and G-band magnitude for Gaia stars -- the two
+    aren't perfectly comparable, but both track observability well enough for filtering.
     """
 )
 magnitude_min = st.number_input("Minimum magnitude of star", -2, 8, value=8)
-indices_magnitude = np.argwhere(Vmag_ < magnitude_min)
-
-baselines_needed__ = baselines_needed_[indices_magnitude].reshape(-1)
-Phi_V__= Phi_V_[indices_magnitude].reshape(-1)
-diameter_V__ = diameter_V_[indices_magnitude].reshape(-1)
-temps__ = temps_[indices_magnitude].reshape(-1)
-inverse_diameter__ = inverse_diameter_[indices_magnitude].reshape(-1)
-dist__ = dist_[indices_magnitude].reshape(-1)
-Vmag__ = Vmag_[indices_magnitude].reshape(-1)
-sii_analyzed__ = sii_analyzed_[indices_magnitude].reshape(-1)
-Dec_decimal__ = Dec_decimal_[indices_magnitude].reshape(-1)
-RA_decimal__ = RA_decimal_[indices_magnitude].reshape(-1)
+mask &= df['mag'] < magnitude_min
 
 st.markdown(
     """
@@ -295,20 +212,10 @@ on_dec = st.toggle("Specify Declination")
 if on_dec:
     declination_range = st.slider("Declination range in degrees", -90, 90, (-90, 90))
 else:
-    declination_range = [-90, 90]
+    declination_range = (-90, 90)
 
 declination_min, declination_max = declination_range
-indices_declination = np.argwhere((Dec_decimal__ >= declination_min) & (Dec_decimal__ <= declination_max))
-baselines_needed___ = baselines_needed__[indices_declination].reshape(-1)
-Vmag___ = Vmag__[indices_declination].reshape(-1)
-Phi_V___ = Phi_V__[indices_declination].reshape(-1)
-diameter_V___ = diameter_V__[indices_declination].reshape(-1)
-temps___ = temps__[indices_declination].reshape(-1)
-inverse_diameter___ = inverse_diameter__[indices_declination].reshape(-1)
-dist___ = dist__[indices_declination].reshape(-1)
-sii_analyzed___ = sii_analyzed__[indices_declination].reshape(-1)
-Dec_decimal___ = Dec_decimal__[indices_declination].reshape(-1)
-RA_decimal___ = RA_decimal__[indices_declination].reshape(-1)
+mask &= (df['dec_deg'] >= declination_min) & (df['dec_deg'] <= declination_max)
 
 st.markdown(
     """
@@ -320,246 +227,75 @@ st.markdown(
 on_ra = st.toggle("Specify Right Ascension Range")
 
 if on_ra:
-    # Define the RA range in hours
-    ra_min, ra_max = 0, 24
-    
-    # RA slider
     ra_start = st.number_input("Minimum Right Ascension in hours", 0, 24, value=0)
     ra_end = st.number_input("Maximum Right Ascension in hours", 0, 24, value=24)
-    
     st.write(f"RA range: {ra_start}h to {ra_end}h")
-    indices_ra = np.argwhere((RA_decimal___ >= ra_start) & (RA_decimal___ < ra_end))
-
 else:
-    ra_start = 0
-    ra_end = 24
-    indices_ra = np.argwhere((RA_decimal___ >= ra_start) & (RA_decimal___ <= ra_end))
+    ra_start, ra_end = 0, 24
 
-baselines_needed____ = baselines_needed___[indices_ra].reshape(-1)
-Vmag____ = Vmag___[indices_ra].reshape(-1)
-Phi_V____ = Phi_V___[indices_ra].reshape(-1)
-diameter_V____ = diameter_V___[indices_ra].reshape(-1)
-temps____ = temps___[indices_ra].reshape(-1)
-inverse_diameter____ = inverse_diameter___[indices_ra].reshape(-1)
-dist____ = dist___[indices_ra].reshape(-1)
-sii_analyzed____ = sii_analyzed___[indices_ra].reshape(-1)
-Dec_decimal____ = Dec_decimal___[indices_ra].reshape(-1)
-RA_decimal____ = RA_decimal___[indices_ra].reshape(-1)
+ra_deg_min, ra_deg_max = ra_start * 15.0, ra_end * 15.0
+mask &= (df['ra_deg'] >= ra_deg_min) & (df['ra_deg'] <= ra_deg_max)
 
-
-# Plot using the colormap based on temperatures
-fig, ax1 = plt.subplots()
-
-# Plot the first dataset with the colormap based on temperatures
-sc = ax1.scatter(inverse_diameter____, Phi_V____, c=temps____, cmap=bb_cmap, marker='.', norm=norm)
-sc2 = ax1.scatter(inverse_diameter____[sii_analyzed____], Phi_V____[sii_analyzed____], c=temps____[sii_analyzed____], cmap=bb_cmap, marker='*', label='SII Analyzed Stars', norm=norm)
-cbar = plt.colorbar(sc, ax=ax1, label='Temperature (K)', pad=0.15)
-ax1.set_yscale('log')
-ax1.set_xlabel('1/θ [mas$^{-1}$]')
-ax1.set_ylabel(r'Φ [photons m$^{-2}$ s$^{-1}$ Hz$^{-1}$]')
-ax1.set_title('Φ vs θ')
-#ax1.set_xlim(0, 25)
-
-ax2 = ax1.twinx()
-ax3 = ax1.twiny()
-
-# Set the limits for the second y-axis based on the transformation
-phi_min, phi_max = ax1.get_ylim()
-thetainverse_min, thetainverse_max = ax1.get_xlim()
-if thetainverse_min < 0:
-    thetainverse_min = 0
-
-ax2.set_ylim(mag_from_phi(phi_min), mag_from_phi(phi_max))
-ax2.set_ylabel('magnitude')
-
-ax3.scatter(baselines_needed____, Phi_V____, c=temps____, cmap=bb_cmap, marker='')
-ax3.set_xlabel('baseline needed [m]')
-
-ax2.grid(True)
-ax3.grid(True)
+filtered = df[mask].reset_index(drop=True)
 
 st.markdown(
     """
     #### Filtered Stars
     """
 )
-st.write("Total number of stars taken into account with the above set filters:", len(Phi_V____))
+st.write("Total number of stars taken into account with the above set filters:", len(filtered))
 st.markdown(
     """
     ## Plots of the filtered stars
     The stars that meet the specified criteria are shown below.
     """
 )
-st.pyplot(plt)
+st.pyplot(plot_phi_vs_theta(filtered))
+plt.close('all')
 
-
-
-
-def relmag_to_absmag(rel_magnitude, distance): #distance in parsec
-    return rel_magnitude + 5 - 5 * np.log10(distance)
-
-def luminosity(absmag):
-    return 10**(0.4*(4.74 - absmag))
-
-luminosities = []
-abs_Vmag = []
-
-for i in range(len(Vmag____)):
-    abs_Vmag.append(relmag_to_absmag(Vmag____[i], dist____[i]))
-    
-for i in range(len(Vmag____)):
-    luminosities.append(luminosity(abs_Vmag[i]))
-
-
-fig, ax1 = plt.subplots()
-luminosities_array = np.array(luminosities)
-sc = ax1.scatter(temps____, luminosities_array, c=temps____, cmap=bb_cmap, marker='.', norm=norm)
-sc2 = ax1.scatter(temps____[sii_analyzed____], luminosities_array[sii_analyzed____], c=temps____[sii_analyzed____], cmap=bb_cmap, marker='*', norm=norm)
-
-
-# Set labels
-ax1.set_ylabel(r'Luminosity [L$_\odot$]')
-ax1.set_xlabel('Temperatures [K]')
-ax1.set_title('H-R Diagram')
-cbar = plt.colorbar(sc, ax=ax1, label='Temperature (K)', pad=0.1)
-ax1.set_yscale('log')
-ax1.set_xscale('log')
-plt.gca().invert_xaxis()
-
-
-ax1.grid(True)
 
 st.markdown(
     """
     ## H-R Diagram
-    The corresponding H-R diagram can be seen here.
+    The corresponding H-R diagram can be seen here. Only stars with a known distance are included, since
+    luminosity requires converting apparent to absolute magnitude.
     """
 )
 
-st.pyplot(plt)
+hr_valid = filtered['distance_pc'].notna() & (filtered['distance_pc'] > 0)
+hr = filtered[hr_valid].copy()
+hr['abs_mag'] = relmag_to_absmag(hr['mag'], hr['distance_pc'])
+hr['luminosity_Lsun'] = luminosity_from_absmag(hr['abs_mag'])
 
-# other properties of the stars put into arrays
-BayerF = np.array(data['BayerF'])
-Common = np.array(data['Common'])
-Parallax = np.array(data['Parallax'])
-RA_decimal = np.array(data['RA_decimal'])
-Dec_decimal = np.array(data['Dec_decimal'])
-RA = np.array(data['RA'])
-Dec = np.array(data['Dec'])
-Diameter_U = np.array(data['Diameter_U'])
-Diameter_B = np.array(data['Diameter_B'])
-Phi_U = np.array(data['Phi_U'])
-Phi_B = np.array(data['Phi_B'])
-Umag = np.array(data['Umag'])
-Bmag = np.array(data['Bmag'])
+fig, ax1 = plt.subplots()
+ax1.scatter(hr['temp_K'], hr['luminosity_Lsun'], c=hr['temp_K'], cmap=bb_cmap, marker='.', norm=norm)
+hr_marked = hr['sii_observed'].to_numpy(dtype=bool)
+ax1.scatter(hr['temp_K'][hr_marked], hr['luminosity_Lsun'][hr_marked], c=hr['temp_K'][hr_marked],
+            cmap=bb_cmap, marker='*', norm=norm)
+sc = ax1.scatter([], [], c=[], cmap=bb_cmap, norm=norm)
+plt.colorbar(sc, ax=ax1, label='Temperature (K)', pad=0.1)
 
+ax1.set_ylabel(r'Luminosity [L$_\odot$]')
+ax1.set_xlabel('Temperatures [K]')
+ax1.set_title('H-R Diagram')
+ax1.set_yscale('log')
+ax1.set_xscale('log')
+ax1.invert_xaxis()
+ax1.grid(True)
 
-# filter arrays as the other properties before by baseline and magnitude
-if filter_b_d == "baseline":
-    BayerF_ = BayerF[indices_baseline].reshape(-1)
-    Common_ = Common[indices_baseline].reshape(-1)
-    Parallax_ = Parallax[indices_baseline].reshape(-1)
-    RA_ = RA[indices_baseline].reshape(-1)
-    Dec_ = Dec[indices_baseline].reshape(-1)
-    Diameter_U_ = Diameter_U[indices_baseline].reshape(-1)
-    Diameter_B_ = Diameter_B[indices_baseline].reshape(-1)
-    Phi_U_ = Phi_U[indices_baseline].reshape(-1)
-    Phi_B_ = Phi_B[indices_baseline].reshape(-1)
-    Umag_ = Umag[indices_baseline].reshape(-1)
-    Bmag_ = Bmag[indices_baseline].reshape(-1)
-
-else:
-    BayerF_ = BayerF[indices_angular_diameter].reshape(-1)
-    Common_ = Common[indices_angular_diameter].reshape(-1)
-    Parallax_ = Parallax[indices_angular_diameter].reshape(-1)
-    RA_ = RA[indices_angular_diameter].reshape(-1)
-    Dec_ = Dec[indices_angular_diameter].reshape(-1)
-    Diameter_U_ = Diameter_U[indices_angular_diameter].reshape(-1)
-    Diameter_B_ = Diameter_B[indices_angular_diameter].reshape(-1)
-    Phi_U_ = Phi_U[indices_angular_diameter].reshape(-1)
-    Phi_B_ = Phi_B[indices_angular_diameter].reshape(-1)
-    Umag_ = Umag[indices_angular_diameter].reshape(-1)
-    Bmag_ = Bmag[indices_angular_diameter].reshape(-1)
-
-
-BayerF__ = BayerF_[indices_magnitude].reshape(-1)
-Common__ = Common_[indices_magnitude].reshape(-1)
-Parallax__ = Parallax_[indices_magnitude].reshape(-1)
-RA__ = RA_[indices_magnitude].reshape(-1)
-Dec__ = Dec_[indices_magnitude].reshape(-1)
-Diameter_U__ = Diameter_U_[indices_magnitude].reshape(-1)
-Diameter_B__ = Diameter_B_[indices_magnitude].reshape(-1)
-Phi_U__ = Phi_U_[indices_magnitude].reshape(-1)
-Phi_B__ = Phi_B_[indices_magnitude].reshape(-1)
-Umag__ = Umag_[indices_magnitude].reshape(-1)
-Bmag__ = Bmag_[indices_magnitude].reshape(-1)
-
-BayerF___ = BayerF__[indices_declination].reshape(-1)
-Common___ = Common__[indices_declination].reshape(-1)
-Parallax___ = Parallax__[indices_declination].reshape(-1)
-RA___ = RA__[indices_declination].reshape(-1)
-Dec___ = Dec__[indices_declination].reshape(-1)
-Diameter_U___ = Diameter_U__[indices_declination].reshape(-1)
-Diameter_B___ = Diameter_B__[indices_declination].reshape(-1)
-Phi_U___ = Phi_U__[indices_declination].reshape(-1)
-Phi_B___ = Phi_B__[indices_declination].reshape(-1)
-Umag___ = Umag__[indices_declination].reshape(-1)
-Bmag___ = Bmag__[indices_declination].reshape(-1)
-
-BayerF____ = BayerF___[indices_ra].reshape(-1)
-Common____ = Common___[indices_ra].reshape(-1)
-Parallax____ = Parallax___[indices_ra].reshape(-1)
-RA____ = RA___[indices_ra].reshape(-1)
-Dec____ = Dec___[indices_ra].reshape(-1)
-Diameter_U____ = Diameter_U___[indices_ra].reshape(-1)
-Diameter_B____ = Diameter_B___[indices_ra].reshape(-1)
-Phi_U____ = Phi_U___[indices_ra].reshape(-1)
-Phi_B____ = Phi_B___[indices_ra].reshape(-1)
-Umag____ = Umag___[indices_ra].reshape(-1)
-Bmag____ = Bmag___[indices_ra].reshape(-1)
-
-# save as dataframe
-filtered_data = {
-    'BayerF': BayerF____,
-    'Common': Common____,
-    'Parallax': Parallax____,
-    'Distance': dist____,
-    'Umag': Umag____,  # Assuming 'Umag' was not used and therefore is not available
-    'Vmag': Vmag____,
-    'Bmag': Bmag____,  # Assuming 'Bmag' was not used and therefore is not available
-    'Temp': temps____,
-    'RA_decimal': RA_decimal____,
-    'Dec_decimal': Dec_decimal____,
-    'RA': RA____,
-    'Dec': Dec____,
-    'Diameter_U': Diameter_U____,
-    'Diameter_V': diameter_V____,
-    'Diameter_B': Diameter_B____,
-    'Phi_U': Phi_U____,
-    'Phi_V': Phi_V____,
-    'Phi_B': Phi_B____,
-    'SII': sii_analyzed____,
-    'Baseline_Needed': baselines_needed____,
-    'Inverse_Diameter': inverse_diameter____
-}
-
-df_filtered = pd.DataFrame(filtered_data)
-
-# convert to csv
-csv = df_filtered.to_csv(index=False)
-
+st.pyplot(fig)
+plt.close('all')
 
 st.markdown(
     """
     #### Download
-    To download a CSV file of the filtered stars with its Bayer designation, common name, RA, Dec as well as other properties, click the button below:
+    To download a CSV file of the filtered stars with its name, RA, Dec as well as other properties, click the button below:
     """
 )
 
-# Add the download button
 st.download_button(
     label="Download",
-    data=csv,
+    data=filtered.to_csv(index=False),
     file_name='filtered_stars.csv',
     mime='text/csv'
 )
