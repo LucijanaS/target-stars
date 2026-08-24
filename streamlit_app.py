@@ -110,9 +110,9 @@ def plot_phi_vs_theta(data):
     sc = ax1.scatter([], [], c=[], cmap=bb_cmap, norm=norm)  # dummy mappable for the colorbar
     plt.colorbar(sc, ax=ax1, label='Temperature (K)', pad=0.15)
     ax1.set_yscale('log')
-    ax1.set_xlabel('1/θ [mas$^{-1}$]')
-    ax1.set_ylabel(r'Φ [photons m$^{-2}$ s$^{-1}$ Hz$^{-1}$]')
-    ax1.set_title('Φ vs θ')
+    ax1.set_xlabel(r'$1/\theta$ [mas$^{-1}$]')
+    ax1.set_ylabel(r'$\Phi$ [photons m$^{-2}$ s$^{-1}$ Hz$^{-1}$]')
+    ax1.set_title(r'$\Phi$ vs $\theta$')
 
     ax2 = ax1.twinx()
     ax3 = ax1.twiny()
