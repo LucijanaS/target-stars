@@ -1,3 +1,5 @@
+import threading
+
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -6,6 +8,12 @@ import matplotlib.colors as mcolors
 import matplotlib.ticker as mticker
 from scipy.constants import c, h, pi
 from scipy.special import j1, jn_zeros
+
+# Matplotlib's pyplot state (current figure/axes, mathtext parser cache) is global and not
+# thread-safe -- Streamlit runs script reruns in worker threads, and concurrent access to it can
+# corrupt the mathtext parser's internal state, producing spurious ParseExceptions on perfectly
+# valid label text. This lock serializes all matplotlib figure creation/rendering in this app.
+_plot_lock = threading.RLock()
 
 st.markdown(
     """
@@ -99,39 +107,48 @@ df['inverse_theta_mas'] = 1 / df['theta_mas']
 
 
 def plot_phi_vs_theta(data):
-    # Wider/taller than matplotlib's default (6.4x4.8in) -- this plot carries four axis label
-    # sets (bottom/left/right/top) plus a colorbar, all sharing one figure, so the default size
-    # leaves too little room for the actual data area and every label ends up looking oversized.
-    fig, ax1 = plt.subplots(figsize=(9, 6.5))
-    ax1.scatter(data['inverse_theta_mas'], data['phi'], c=data['temp_K'], cmap=bb_cmap, marker='.', norm=norm)
-    marked = data['sii_observed'].to_numpy(dtype=bool)
-    ax1.scatter(data['inverse_theta_mas'][marked], data['phi'][marked], c=data['temp_K'][marked],
-                cmap=bb_cmap, marker='*', label='SII Observed Stars', norm=norm)
-    sc = ax1.scatter([], [], c=[], cmap=bb_cmap, norm=norm)  # dummy mappable for the colorbar
-    plt.colorbar(sc, ax=ax1, label='Temperature (K)', pad=0.15)
-    ax1.set_yscale('log')
-    ax1.set_xlabel(r'$1/\theta$ [mas$^{-1}$]')
-    ax1.set_ylabel(r'$\Phi$ [photons m$^{-2}$ s$^{-1}$ Hz$^{-1}$]')
-    ax1.set_title(r'$\Phi$ vs $\theta$')
+    with _plot_lock:
+        # Wider/taller than matplotlib's default (6.4x4.8in) -- this plot carries four axis label
+        # sets (bottom/left/right/top) plus a colorbar, all sharing one figure, so the default size
+        # leaves too little room for the actual data area and every label ends up looking oversized.
+        fig, ax1 = plt.subplots(figsize=(9, 6.5))
+        ax1.scatter(data['inverse_theta_mas'], data['phi'], c=data['temp_K'], cmap=bb_cmap, marker='.', norm=norm)
+        marked = data['sii_observed'].to_numpy(dtype=bool)
+        ax1.scatter(data['inverse_theta_mas'][marked], data['phi'][marked], c=data['temp_K'][marked],
+                    cmap=bb_cmap, marker='*', label='SII Observed Stars', norm=norm)
+        sc = ax1.scatter([], [], c=[], cmap=bb_cmap, norm=norm)  # dummy mappable for the colorbar
+        plt.colorbar(sc, ax=ax1, label='Temperature (K)', pad=0.15)
+        ax1.set_yscale('log')
+        ax1.set_xlabel(r'$1/\theta$ [mas$^{-1}$]')
+        ax1.set_ylabel(r'$\Phi$ [photons m$^{-2}$ s$^{-1}$ Hz$^{-1}$]')
+        ax1.set_title(r'$\Phi$ vs $\theta$')
 
-    ax2 = ax1.twinx()
-    ax3 = ax1.twiny()
+        ax2 = ax1.twinx()
+        ax3 = ax1.twiny()
 
-    phi_min, phi_max = ax1.get_ylim()
-    # The G-band (Gaia, 622 nm) accounts for ~98% of this catalog, so the secondary magnitude
-    # axis uses that wavelength -- it's only approximate for the V-band (BSC) points mixed in.
-    ax2.set_ylim(mag_from_phi(phi_min, 622e-9), mag_from_phi(phi_max, 622e-9))
-    ax2.set_ylabel('magnitude (approx., G-band)', fontsize=9)
-    ax2.tick_params(labelsize=9)
+        phi_min, phi_max = ax1.get_ylim()
+        # The G-band (Gaia, 622 nm) accounts for ~98% of this catalog, so the secondary magnitude
+        # axis uses that wavelength -- it's only approximate for the V-band (BSC) points mixed in.
+        ax2.set_ylim(mag_from_phi(phi_min, 622e-9), mag_from_phi(phi_max, 622e-9))
+        ax2.set_ylabel('magnitude (approx., G-band)', fontsize=9)
+        ax2.tick_params(labelsize=9)
 
-    ax3.scatter(data['baseline_needed_m'], data['phi'], c=data['temp_K'], cmap=bb_cmap, marker='')
-    ax3.set_xlabel('baseline needed [m]', fontsize=9)
-    ax3.tick_params(labelsize=9)
+        ax3.scatter(data['baseline_needed_m'], data['phi'], c=data['temp_K'], cmap=bb_cmap, marker='')
+        ax3.set_xlabel('baseline needed [m]', fontsize=9)
+        ax3.tick_params(labelsize=9)
 
-    ax2.grid(True)
-    ax3.grid(True)
-    fig.tight_layout()
-    return fig
+        ax2.grid(True)
+        ax3.grid(True)
+        fig.tight_layout()
+        return fig
+
+
+@st.cache_resource
+def get_unfiltered_phi_vs_theta_plot():
+    # df never changes after load, so this is identical on every rerun -- caching it means a
+    # widget interaction elsewhere doesn't force this (slow, tight_layout-heavy) plot to be
+    # rebuilt from scratch every time.
+    return plot_phi_vs_theta(df)
 
 
 st.markdown(
@@ -158,8 +175,8 @@ st.write(
 st.write("The ones marked with a '★' have already been observed via intensity interferometry "
          "-- currently the 32 stars from Hanbury Brown, Davis & Allen (1974).")
 
-st.pyplot(plot_phi_vs_theta(df))
-plt.close('all')
+with _plot_lock:
+    st.pyplot(get_unfiltered_phi_vs_theta_plot())
 
 
 st.markdown(
@@ -255,8 +272,9 @@ st.markdown(
     The stars that meet the specified criteria are shown below.
     """
 )
-st.pyplot(plot_phi_vs_theta(filtered))
-plt.close('all')
+with _plot_lock:
+    st.pyplot(plot_phi_vs_theta(filtered))
+    plt.close('all')
 
 
 st.markdown(
@@ -272,30 +290,31 @@ hr = filtered[hr_valid].copy()
 hr['abs_mag'] = relmag_to_absmag(hr['mag'], hr['distance_pc'])
 hr['luminosity_Lsun'] = luminosity_from_absmag(hr['abs_mag'])
 
-fig, ax1 = plt.subplots()
-ax1.scatter(hr['temp_K'], hr['luminosity_Lsun'], c=hr['temp_K'], cmap=bb_cmap, marker='.', norm=norm)
-hr_marked = hr['sii_observed'].to_numpy(dtype=bool)
-ax1.scatter(hr['temp_K'][hr_marked], hr['luminosity_Lsun'][hr_marked], c=hr['temp_K'][hr_marked],
-            cmap=bb_cmap, marker='*', norm=norm)
-sc = ax1.scatter([], [], c=[], cmap=bb_cmap, norm=norm)
-plt.colorbar(sc, ax=ax1, label='Temperature (K)', pad=0.1)
+with _plot_lock:
+    fig, ax1 = plt.subplots()
+    ax1.scatter(hr['temp_K'], hr['luminosity_Lsun'], c=hr['temp_K'], cmap=bb_cmap, marker='.', norm=norm)
+    hr_marked = hr['sii_observed'].to_numpy(dtype=bool)
+    ax1.scatter(hr['temp_K'][hr_marked], hr['luminosity_Lsun'][hr_marked], c=hr['temp_K'][hr_marked],
+                cmap=bb_cmap, marker='*', norm=norm)
+    sc = ax1.scatter([], [], c=[], cmap=bb_cmap, norm=norm)
+    plt.colorbar(sc, ax=ax1, label='Temperature (K)', pad=0.1)
 
-ax1.set_ylabel(r'Luminosity [L$_\odot$]')
-ax1.set_xlabel('Temperatures [K]')
-ax1.set_title('H-R Diagram')
-ax1.set_yscale('log')
-ax1.set_xscale('log')
-ax1.invert_xaxis()
-# A plain log-scale locator crams in every minor tick (2, 3, 4, 6...) as a label since the
-# temperature range only spans about a decade, so they overlap into an unreadable smear. A
-# fixed, round-number tick set with plain (non-scientific) labels stays legible instead.
-ax1.xaxis.set_major_locator(mticker.FixedLocator([2000, 3000, 5000, 7000, 10000, 15000, 20000, 30000, 45000]))
-ax1.xaxis.set_major_formatter(mticker.ScalarFormatter())
-ax1.xaxis.set_minor_formatter(mticker.NullFormatter())
-ax1.grid(True)
+    ax1.set_ylabel(r'Luminosity [L$_\odot$]')
+    ax1.set_xlabel('Temperatures [K]')
+    ax1.set_title('H-R Diagram')
+    ax1.set_yscale('log')
+    ax1.set_xscale('log')
+    ax1.invert_xaxis()
+    # A plain log-scale locator crams in every minor tick (2, 3, 4, 6...) as a label since the
+    # temperature range only spans about a decade, so they overlap into an unreadable smear. A
+    # fixed, round-number tick set with plain (non-scientific) labels stays legible instead.
+    ax1.xaxis.set_major_locator(mticker.FixedLocator([2000, 3000, 5000, 7000, 10000, 15000, 20000, 30000, 45000]))
+    ax1.xaxis.set_major_formatter(mticker.ScalarFormatter())
+    ax1.xaxis.set_minor_formatter(mticker.NullFormatter())
+    ax1.grid(True)
 
-st.pyplot(fig)
-plt.close('all')
+    st.pyplot(fig)
+    plt.close('all')
 
 st.markdown(
     """
